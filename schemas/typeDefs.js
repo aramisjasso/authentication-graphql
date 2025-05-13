@@ -13,7 +13,7 @@ const typeDefs = gql`
   }
 
   type Mutation {
-    registerUser(email: String!, phone: String): User
+    registerUser(email: String!, phone: String!, via: String!): User
     updateUser(id: ID!, email: String, phone: String): User
     deleteUser(id: ID!): Boolean
   }
