@@ -1,6 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
-const { sendVerificationEmail, verifyCode } = require('../controllers/emailService');
+const { sendVerificationEmail, verifyCode } = require('../controllers/verificationController');
 const otpsRef = db.collection('otps');
 
 // Generar OTP de 6 dígitos
@@ -101,24 +101,6 @@ const check = async (email, code) => {
   } catch (error) {
     console.error("Error en verificación:", error.message);
     return { success: false, error: error.message };
-  }
-};
-
-const login = async (email) => {
-  const snapshot = await usersRef.where('email', '==', email).get();
-
-  if (snapshot.empty) {
-    return "Acceso Denegado. Usuario no Encontrado"; // Usuario no encontrado
-  }
-
-  const doc = snapshot.docs[0];
-  const user = { id: doc.id, ...doc.data() };
-
-  if (user.isVerified) {
-    return "Acceso Permitido"; // Usuario verificado
-  } else {
-    await sendVerificationEmail(email);
-    return "Acceso Denegado. Usuario no Verificado"; 
   }
 };
 
