@@ -1,5 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
+const { sendVerificationEmail } = require('../controllers/emailService');
 
 const getAll = async () => {
   const snapshot = await usersRef.get();
@@ -28,6 +29,8 @@ const register = async (email, phone, via) => {
   if (!validatePhone(phone)) {
     throw new Error('Correo no válido');
   }
+
+  await sendVerificationEmail(email);
 
   const newUser = { email, phone, isVerified: false };
   const docRef = await usersRef.add(newUser); 
