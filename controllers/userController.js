@@ -6,8 +6,8 @@ const resolvers = {
     getUser: async (_, { id }) => userModel.getById(id), 
   },
   Mutation : {
-    createUser: async (_, { name, email }) => userModel.create(name, email),
-    updateUser: async (_, { id, name, email }) => userModel.update(id, name, email),
+    registerUser: async (_, { email, phone }) => userModel.create(email, phone),
+    updateUser: async (_, { id, email, phone }) => userModel.update(id, email, phone),
     deleteUser: async (_, { id }) => userModel.remove(id)
   }
 }

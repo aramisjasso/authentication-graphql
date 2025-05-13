@@ -20,12 +20,12 @@ const getById = async (id) => {
   };
 };
 
-const create = async (name, email) => {
+const create = async (email, phone) => {
   if (!validateEmail(email)) {
     throw new Error('Email no válido');
   }
 
-  const newUser = { name, email };
+  const newUser = { email, phone, isVerified: false };
   const docRef = await usersRef.add(newUser); 
   
   return {
@@ -34,7 +34,7 @@ const create = async (name, email) => {
   };
 };
 
-const update = async (id, name, email) => {
+const update = async (id, email, phone) => {
   if (email && !validateEmail(email)) {
     throw new Error('Email no válido');
   }
@@ -42,8 +42,8 @@ const update = async (id, name, email) => {
   const userRef = usersRef.doc(id);
   const updates = {};
   
-  if (name !== undefined) updates.name = name;
   if (email !== undefined) updates.email = email;
+  if (phone !== undefined) updates.phone = phone;
 
   await userRef.update(updates);
   const updatedDoc = await userRef.get();
