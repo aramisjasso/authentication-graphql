@@ -20,7 +20,7 @@ const getById = async (id) => {
   };
 };
 
-const create = async (email, phone) => {
+const register = async (email, phone, via) => {
   if (!validateEmail(email)) {
     throw new Error('Email no válido');
   }
@@ -75,4 +75,4 @@ const validateEmail = (email) => {
   return re.test(email);
 };
 
-module.exports = { getAll, getById, create, update, remove };
+module.exports = { getAll, getById, register, update, remove };
