@@ -23,6 +23,7 @@ function generateVerificationCode(email) {
     code,
     timestamp: Date.now() // Registra el momento exacto de creación
   };
+  //console.log(`Código generado para ${email}: ${code} | Timestamp: ${verificationCodes[email].timestamp}`);
   return code;
 }
 
