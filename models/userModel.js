@@ -1,6 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
-const { sendVerificationEmail, verifyCode } = require('../controllers/verificationController');
+const { sendVerificationEmail, verifyCode, sendVerificationSMS, verifySMSCode } = require('../controllers/verificationController');
 const otpsRef = db.collection('otps');
 
 // Generar OTP de 6 dígitos
@@ -46,7 +46,7 @@ const getById = async (id) => {
     return null;
   }
   return {
-    id: doc.id,  
+    id: doc.id,
     ...doc.data()
   };
 };
@@ -57,16 +57,20 @@ const register = async (email, phone, via) => {
   }
 
   if (!validatePhone(phone)) {
-    throw new Error('Correo no válido');
+    throw new Error('Telefono no válido');
   }
 
-  await sendVerificationEmail(email);
+  if (via === "email") {
+    await sendVerificationEmail(email);
+  }else if(via === "phone"){
+    await sendVerificationEmail(email);
+  }
 
   const newUser = { email, phone, isVerified: false };
-  const docRef = await usersRef.add(newUser); 
-  
+  const docRef = await usersRef.add(newUser);
+
   return {
-    id: docRef.id, 
+    id: docRef.id,
     ...newUser
   };
 };
@@ -75,7 +79,7 @@ const check = async (email, code) => {
   try {
     // 1. Verificar el código
     const isValid = verifyCode(email, code);
-    
+
     if (!isValid) {
       throw new Error("Código inválido o expirado");
     }
@@ -95,9 +99,9 @@ const check = async (email, code) => {
     });
 
     await batch.commit();
-    
+
     return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data(), isVerified: true };
-    
+
   } catch (error) {
     console.error("Error en verificación:", error.message);
     return { success: false, error: error.message };
@@ -111,14 +115,14 @@ const update = async (id, email, phone) => {
 
   const userRef = usersRef.doc(id);
   const updates = {};
-  
+
   if (email !== undefined) updates.email = email;
   if (phone !== undefined) updates.phone = phone;
 
   await userRef.update(updates);
   const updatedDoc = await userRef.get();
   return {
-    id: updatedDoc.id,  
+    id: updatedDoc.id,
     ...updatedDoc.data()
   };
 };
@@ -127,11 +131,11 @@ const remove = async (id) => {
   try {
     const docRef = usersRef.doc(id);
     const doc = await docRef.get();
-    
+
     if (!doc.exists) {
       return false; // Documento no existe
     }
-    
+
     await docRef.delete();
     return true;
   } catch (error) {
