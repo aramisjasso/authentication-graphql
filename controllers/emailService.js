@@ -1,7 +1,7 @@
 // utils/emailService.js
 const nodemailer = require("nodemailer");
 
-// Configurar el transporter para cuentas de Google
+// Configuración del transporter (Gmail)
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -11,51 +11,68 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Objeto para almacenar códigos (en memoria)
+const verificationCodes = {};
+
 /**
- * Envía un correo de confirmación de reserva a un cliente
- * @param {string} destination - Correo electrónico del cliente
- * @param {string} classData - Arreglo de informacion de la clase
+ * Genera un código y lo guarda con timestamp
  */
-exports.sendConfirmationEmail = async (destination, classData) => {
-  //Convertir de fecha YYYY-MM-DD a una cadena
-  const dateString = new Date(classData.date);
-  const options = { day: 'numeric', month: 'long', year: 'numeric' };
-  const formatedDate = dateString.toLocaleDateString('es-ES', options);
+function generateVerificationCode(email) {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  verificationCodes[email] = {
+    code,
+    timestamp: Date.now() // Registra el momento exacto de creación
+  };
+  return code;
+}
+
+/**
+ * Verifica si el código es correcto y no ha expirado (5 mins)
+ * @returns {boolean} - True si es válido, False si no
+ */
+exports.verifyCode = (email, userInputCode) => {
+  const record = verificationCodes[email];
+  if (!record) return false;
+
+  const expirationTime = 5 * 60 * 1000; // 5 minutos en milisegundos
+  const isExpired = (Date.now() - record.timestamp) > expirationTime;
+  const isValid = record.code === userInputCode;
+
+  // Elimina el código (usado o expirado)
+  delete verificationCodes[email];
+
+  return isValid && !isExpired; // Solo válido si coincide y no ha expirado
+};
+
+/**
+ * Envía el correo con código de 6 dígitos (válido por 5 minutos)
+ */
+exports.sendVerificationEmail = async (email) => {
+  const verificationCode = generateVerificationCode(email);
 
   const mailOptions = {
-    from: `"Equipo Adana Pilates" <${process.env.EMAIL_SENDER}>`,
-    to: destination,
-    subject: "Confirmación de Reserva - Adana Pilates",
+    from: `"Código de Verificación" <${process.env.EMAIL_SENDER}>`,
+    to: email,
+    subject: "Tu código expira en 5 minutos ⏳",
     html: `
-    <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px; border-radius: 10px;">
-      <h2 style="color: #4CAF50;">¡Reserva confirmada! 🧘‍♀️</h2>
-      <p>Hola,</p>
-      <p>Has reservado exitosamente tu clase de <strong>${classData.title}</strong>.</p>
-      <ul style="list-style-type: none; padding: 0;">
-        <li><strong>Instructor:</strong> ${classData.instructor}</li>
-        <li><strong>Fecha:</strong> ${formatedDate}</li>
-        <li><strong>Hora:</strong> ${classData.time}</li>
-        <li><strong>Importe pagado:</strong>$${classData.totalPrice}</li>
-      </ul>
-      <p>Te esperamos con mucha energía ✨</p>
-
-      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ccc;">
-
-      <div style="font-size: 14px; color: #555;">
-        <p><strong>— El equipo de Adana</strong></p>
-        <p style="color: #388E3C; font-style: italic;">
-          "Move beyond your possibilities..."
-          <img src="https://cdn-icons-png.flaticon.com/512/427/427735.png" width="16" height="16" style="vertical-align: middle; margin-left: 5px;" alt="hoja ecológica"/>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">¡Usa este código para continuar!</h2>
+        <p style="font-size: 18px;">Código de verificación:</p>
+        <p style="font-size: 32px; font-weight: bold; color: #1a73e8; letter-spacing: 5px; margin: 20px 0;">
+          ${verificationCode}
+        </p>
+        <p style="font-size: 14px; color: #d32f2f;">
+          ⚠️ <strong>Expira en 5 minutos</strong> (generado el ${new Date().toLocaleTimeString()})
         </p>
       </div>
-    </div>
-  `
+    `
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log("Correo de confirmación enviado a:", destination);
+    console.log(`✅ Código enviado a ${email} | Expira a las ${new Date(verificationCodes[email].timestamp + 5*60*1000).toLocaleTimeString()}`);
   } catch (error) {
-    console.error("Error al enviar el correo de confirmación:", error);
+    console.error("❌ Error enviando correo:", error);
+    throw error;
   }
 };
