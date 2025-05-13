@@ -25,6 +25,10 @@ const register = async (email, phone, via) => {
     throw new Error('Email no válido');
   }
 
+  if (!validatePhone(phone)) {
+    throw new Error('Correo no válido');
+  }
+
   const newUser = { email, phone, isVerified: false };
   const docRef = await usersRef.add(newUser); 
   
@@ -73,6 +77,11 @@ const remove = async (id) => {
 const validateEmail = (email) => {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(email);
+};
+
+const validatePhone = (phone) => {
+  const re = /^\+?[1-9]\d{1,14}$/;
+  return re.test(phone);
 };
 
 module.exports = { getAll, getById, register, update, remove };
