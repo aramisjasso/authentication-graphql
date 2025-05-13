@@ -74,6 +74,24 @@ const check = async (email, code) => {
   }
 };
 
+const login = async (email) => {
+  const snapshot = await usersRef.where('email', '==', email).get();
+
+  if (snapshot.empty) {
+    return "Acceso Denegado. Usuario no Encontrado"; // Usuario no encontrado
+  }
+
+  const doc = snapshot.docs[0];
+  const user = { id: doc.id, ...doc.data() };
+
+  if (user.isVerified) {
+    return "Acceso Permitido"; // Usuario verificado
+  } else {
+    await sendVerificationEmail(email);
+    return "Acceso Denegado. Usuario no Verificado"; 
+  }
+};
+
 const update = async (id, email, phone) => {
   if (email && !validateEmail(email)) {
     throw new Error('Email no válido');
@@ -120,4 +138,4 @@ const validatePhone = (phone) => {
   return re.test(phone);
 };
 
-module.exports = { getAll, getById, register, update, remove, check };
+module.exports = { getAll, getById, register, update, remove, check, login };

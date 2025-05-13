@@ -8,6 +8,7 @@ const resolvers = {
   Mutation : {
     registerUser: async (_, { email, phone, via }) => userModel.register(email, phone, via),
     verifyCode: async (_, { email, code }) => userModel.check(email, code),
+    login: async (_, { email }) => userModel.login(email),
     updateUser: async (_, { id, email, phone }) => userModel.update(id, email, phone),
     deleteUser: async (_, { id }) => userModel.remove(id)
   }
