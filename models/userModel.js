@@ -1,6 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
-const { sendVerificationEmail, verifyCode, sendVerificationSMS, verifySMSCode } = require('../controllers/verificationController');
+const { sendVerificationEmail, verifyEmailCode, sendVerificationSMS, verifySMSCode } = require('../controllers/verificationController');
 const otpsRef = db.collection('otps');
 
 // Generar OTP de 6 dígitos
@@ -66,45 +66,62 @@ const register = async (email, phone, via) => {
     await sendVerificationSMS(phone);
   }
 
-  const newUser = { email, phone, isVerified: false };
+  const newUser = { email, phone, isVerified: via };
   const docRef = await usersRef.add(newUser);
 
   return {
     id: docRef.id,
-    ...newUser
+    ...newUser,
+    isVerified: false 
   };
 };
 
 const check = async (email, code) => {
   try {
-    // 1. Verificar el código
-    const isValid = verifyCode(email, code);
-
-    if (!isValid) {
-      throw new Error("Código inválido o expirado");
-    }
-
-    // 2. Actualizar el usuario en la base de datos
-    const usersRef = db.collection('users'); // Asegúrate de tener tu referencia a Firestore
+    // 1. Obtener usuario y su método de verificación
+    const usersRef = db.collection('users');
     const querySnapshot = await usersRef.where('email', '==', email).get();
 
     if (querySnapshot.empty) {
       throw new Error("Usuario no encontrado");
     }
 
-    // Actualizar todos los documentos que coincidan (por si hay duplicados)
-    const batch = db.batch();
-    querySnapshot.forEach(doc => {
-      batch.update(doc.ref, { isVerified: true });
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data();
+    const verificationVia = userData.isVerified; // 'email' o 'phone'
+
+    // 2. Verificar el código según el método
+    let isValid;
+    if (verificationVia === "email") {
+      isValid = verifyEmailCode(email, code); // Tu función existente para email
+    } else if (verificationVia === "phone") {
+      isValid = verifySMSCode(userData.phone, code); // Nueva función para SMS
+    } else {
+      throw new Error("Método de verificación no soportado");
+    }
+
+    if (!isValid) {
+      throw new Error("Código inválido o expirado");
+    }
+
+    // 3. Actualizar el usuario (marcar como verificado y limpiar la vía)
+    await userDoc.ref.update({ 
+      isVerified: true, // Ahora sí marcamos como verdadero
     });
 
-    await batch.commit();
-
-    return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data(), isVerified: true };
+    return { 
+      success: true,
+      id: userDoc.id,
+      ...userData,
+      isVerified: true // Devolvemos el estado actualizado
+    };
 
   } catch (error) {
     console.error("Error en verificación:", error.message);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message
+    };
   }
 };
 

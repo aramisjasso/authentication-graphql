@@ -38,7 +38,7 @@ function generateVerificationCode(identifier) {
 /**
  * Verifica si el código es correcto y no ha expirado (5 minutos)
  */
-function verifyCode(identifier, userInputCode) {
+function verifyEmailCode(identifier, userInputCode) {
   const record = verificationCodes[identifier];
   if (!record) return false;
 
@@ -136,6 +136,6 @@ function canSendCode(identifier) {
 module.exports = {
   sendVerificationEmail,
   sendVerificationSMS,
-  verifyCode,
+  verifyEmailCode,
   verifySMSCode
 };
