@@ -1,36 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
 const { sendVerificationEmail, verifyCode } = require('../controllers/emailService');
-const otpsRef = db.collection('otps');
-
-// Generar OTP de 6 dígitos
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-// Función simulada para enviar OTP por correo o WhatsApp (impleméntala según tu método preferido)
-const sendOTP = async (email, otp) => {
-  console.log(`Enviando OTP ${otp} a ${email}`);
-  // Aquí deberías usar nodemailer o Twilio
-};
-
-const login = async (email) => {
-  const snapshot = await usersRef.where('email', '==', email).get();
-
-  if (snapshot.empty) {
-    return false; // Usuario no encontrado
-  }
-
-  const doc = snapshot.docs[0];
-  const user = { id: doc.id, ...doc.data() };
-
-  if (user.isVerified) {
-    return true; // Acceso permitido
-  } else {
-    const otp = generateOTP();
-    await sendOTP(email, otp);
-    await otpsRef.doc(email).set({ otp, createdAt: Date.now() });
-    return false; // OTP reenviado
-  }
-};
 
 const getAll = async () => {
   const snapshot = await usersRef.get();

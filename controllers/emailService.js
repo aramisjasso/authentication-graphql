@@ -71,9 +71,9 @@ exports.sendVerificationEmail = async (email) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Código enviado a ${email} | Expira a las ${new Date(verificationCodes[email].timestamp + 5*60*1000).toLocaleTimeString()}`);
+    //console.log(`✅ Código enviado a ${email} | Expira a las ${new Date(verificationCodes[email].timestamp + 5*60*1000).toLocaleTimeString()}`);
   } catch (error) {
-    console.error("❌ Error enviando correo:", error);
+    //console.error("❌ Error enviando correo:", error);
     throw error;
   }
 };
