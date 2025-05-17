@@ -1,6 +1,6 @@
 // utils/verificationService.js
 const nodemailer = require("nodemailer");
-const twilio = require("twilio");
+const { Vonage } = require('@vonage/server-sdk');
 
 // Configuración del transporter (Gmail)
 const transporter = nodemailer.createTransport({
@@ -12,16 +12,15 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Configuración de Twilio
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const twilioServiceSid = process.env.TWILIO_SERVICE_SID;
+// Configuración de Vonage (Nexmo)
+const vonage = new Vonage({
+  apiKey: process.env.VONAGE_API_KEY,
+  apiSecret: process.env.VONAGE_API_SECRET
+});
 
 // Objeto para almacenar códigos de verificación (en memoria)
 const verificationCodes = {};
-
-//Objeto para guardar el tiempo de envio de codigos
 const lastSentTimestamps = {};
-
 
 /**
  * Genera un código de 6 dígitos y lo guarda con timestamp
@@ -38,7 +37,7 @@ function generateVerificationCode(identifier) {
 /**
  * Verifica si el código es correcto y no ha expirado (5 minutos)
  */
-function verifyEmailCode(identifier, userInputCode) {
+function verifyCode(identifier, userInputCode) {
   const record = verificationCodes[identifier];
   if (!record) return false;
 
@@ -50,6 +49,19 @@ function verifyEmailCode(identifier, userInputCode) {
   delete verificationCodes[identifier];
 
   return isValid && !isExpired;
+}
+
+/**
+ * Verifica si se puede enviar un nuevo código (espera mínima de 1 minuto)
+ */
+function canSendCode(identifier) {
+  const lastSent = lastSentTimestamps[identifier];
+  const now = Date.now();
+  if (!lastSent || (now - lastSent) > 60 * 1000) {
+    lastSentTimestamps[identifier] = now;
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -89,17 +101,20 @@ async function sendVerificationEmail(email) {
 }
 
 /**
- * Envía un código de verificación por SMS utilizando Twilio Verify
+ * Envía un código de verificación por SMS con Vonage
  */
 async function sendVerificationSMS(phoneNumber) {
   if (!canSendCode(phoneNumber)) {
     throw new Error("Por favor, espera al menos 1 minuto antes de solicitar un nuevo código.");
   }
+  const verificationCode = generateVerificationCode(phoneNumber);
+  const from = "Vonage";
+  const text = `Tu código de verificación es: ${verificationCode}`;
+
   try {
-    const verification = await twilioClient.verify.v2.services(twilioServiceSid)
-      .verifications
-      .create({ to: phoneNumber, channel: 'sms' });
-    console.log(`✅ SMS enviado a ${phoneNumber} | SID: ${verification.sid}`);
+    const response = await vonage.sms.send({ to: phoneNumber, from, text });
+    console.log(`✅ SMS enviado a ${phoneNumber}`);
+    console.log(response);
   } catch (error) {
     console.error("❌ Error enviando SMS:", error);
     throw error;
@@ -107,35 +122,15 @@ async function sendVerificationSMS(phoneNumber) {
 }
 
 /**
- * Verifica el código ingresado por el usuario utilizando Twilio Verify
+ * Verifica el código ingresado por el usuario (SMS)
  */
-async function verifySMSCode(phoneNumber, code) {
-  try {
-    const verificationCheck = await twilioClient.verify.v2.services(twilioServiceSid)
-      .verificationChecks
-      .create({ to: phoneNumber, code });
-    console.log(`🔍 Estado de verificación para ${phoneNumber}: ${verificationCheck.status}`);
-    return verificationCheck.status === 'approved';
-  } catch (error) {
-    console.error("❌ Error verificando código SMS:", error);
-    return false;
-  }
+function verifySMSCode(phoneNumber, userInputCode) {
+  return verifyCode(phoneNumber, userInputCode);
 }
-
-function canSendCode(identifier) {
-  const lastSent = lastSentTimestamps[identifier];
-  const now = Date.now();
-  if (!lastSent || (now - lastSent) > 60 * 1000) {
-    lastSentTimestamps[identifier] = now;
-    return true;
-  }
-  return false;
-}
-
 
 module.exports = {
   sendVerificationEmail,
   sendVerificationSMS,
-  verifyEmailCode,
+  verifyEmailCode: (email, code) => verifyCode(email, code),
   verifySMSCode
 };

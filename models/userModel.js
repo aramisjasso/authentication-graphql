@@ -8,9 +8,36 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 // Función simulada para enviar OTP por correo o WhatsApp (impleméntala según tu método preferido)
 const sendOTP = async (email, otp) => {
-  console.log(`Enviando OTP ${otp} a ${email}`);
-  // Aquí deberías usar nodemailer o Twilio
+  try {
+    // Buscar usuario por email
+    const snapshot = await usersRef.where('email', '==', email).get();
+
+    if (snapshot.empty) {
+      console.error(`❌ Usuario no encontrado con email: ${email}`);
+      return;
+    }
+
+    const userDoc = snapshot.docs[0];
+    const user = userDoc.data();
+
+    // Enviar OTP según el método de verificación
+    const via = user.isVerified; // puede ser "email" o "phone"
+
+    if (via === "email") {
+      await sendVerificationEmail(email, otp);
+      console.log(`📧 OTP enviado por email a ${email}`);
+    } else if (via === "phone") {
+      await sendVerificationSMS(user.phone, otp);
+      console.log(`📱 OTP enviado por SMS a ${user.phone}`);
+    } else {
+      console.error("⚠️ Método de verificación no soportado:", via);
+    }
+  } catch (error) {
+    console.error("❌ Error al enviar OTP:", error.message);
+  }
 };
+
+
 
 const login = async (email) => {
   const snapshot = await usersRef.where('email', '==', email).get();
