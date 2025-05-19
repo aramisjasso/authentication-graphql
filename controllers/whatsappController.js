@@ -9,7 +9,7 @@ exports.sendWhatsMessage = async (phone, message) => {
     phone = normalizeNumber(phone);
 
     restAPI.message.sendMessage(`${phone}@c.us`, null, message).then((data) => {
-        console.log(data);
+        console.log('data');
     });
 }
 
@@ -18,7 +18,7 @@ function normalizeNumber(numero) {
   if (numero.startsWith('+52')) {
     // Si después de +52 no viene el 1, lo insertamos
     if (numero[3] !== '1') {
-      return numero.slice(0, 3) + '1' + numero.slice(3);
+      return numero.slice(1, 3) + '1' + numero.slice(3);
     }
   }
   return numero;

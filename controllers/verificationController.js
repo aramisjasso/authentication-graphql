@@ -1,7 +1,11 @@
 // utils/verificationService.js
 const nodemailer = require("nodemailer");
 const { Vonage } = require('@vonage/server-sdk');
-const { sendWhatsMessage } = require("./whatsappController")
+const db = require('../models/firebase');
+const { sendWhatsMessage } = require('./whatsappController');
+
+const verificationCodesRef = db.collection('verificationCodes');
+const lastSentRef = db.collection('lastSentTimestamps');
 
 // Configuración del transporter (Gmail)
 const transporter = nodemailer.createTransport({
@@ -19,35 +23,38 @@ const vonage = new Vonage({
   apiSecret: process.env.VONAGE_API_SECRET
 });
 
-// Objeto para almacenar códigos de verificación (en memoria)
-const verificationCodes = {};
-const lastSentTimestamps = {};
-
 /**
- * Genera un código de 6 dígitos y lo guarda con timestamp
+ * Genera un código de 6 dígitos y lo guarda en Firestore con timestamp
  */
-function generateVerificationCode(identifier) {
+async function generateVerificationCode(identifier) {
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  verificationCodes[identifier] = {
+  const timestamp = Date.now();
+  
+  await verificationCodesRef.doc(identifier).set({
     code,
-    timestamp: Date.now()
-  };
+    timestamp
+  });
+  
   return code;
 }
 
 /**
  * Verifica si el código es correcto y no ha expirado (5 minutos)
  */
-function verifyCode(identifier, userInputCode) {
-  const record = verificationCodes[identifier];
-  if (!record) return false;
+async function verifyCode(identifier, userInputCode) {
+  const doc = await verificationCodesRef.doc(identifier).get();
+  
+  if (!doc.exists) return false;
 
+  const record = doc.data();
   const expirationTime = 5 * 60 * 1000; // 5 minutos en milisegundos
   const isExpired = (Date.now() - record.timestamp) > expirationTime;
   const isValid = record.code === userInputCode;
 
   // Elimina el código (usado o expirado)
-  delete verificationCodes[identifier];
+  if (isValid || isExpired) {
+    await verificationCodesRef.doc(identifier).delete();
+  }
 
   return isValid && !isExpired;
 }
@@ -55,11 +62,12 @@ function verifyCode(identifier, userInputCode) {
 /**
  * Verifica si se puede enviar un nuevo código (espera mínima de 1 minuto)
  */
-function canSendCode(identifier) {
-  const lastSent = lastSentTimestamps[identifier];
+async function canSendCode(identifier) {
+  const doc = await lastSentRef.doc(identifier).get();
   const now = Date.now();
-  if (!lastSent || (now - lastSent) > 60 * 1000) {
-    lastSentTimestamps[identifier] = now;
+  
+  if (!doc.exists || (now - doc.data().timestamp) > 60 * 1000) {
+    await lastSentRef.doc(identifier).set({ timestamp: now });
     return true;
   }
   return false;
@@ -68,11 +76,12 @@ function canSendCode(identifier) {
 /**
  * Envía un código de verificación por correo electrónico
  */
-async function sendVerificationEmail(email, phone) {
-  if (!canSendCode(email)) {
+async function sendVerificationEmail(email) {
+  if (!await canSendCode(email)) {
     throw new Error("Por favor, espera al menos 1 minuto antes de solicitar un nuevo código.");
   }
-  const verificationCode = generateVerificationCode(email);
+  
+  const verificationCode = await generateVerificationCode(email);
 
   const mailOptions = {
     from: `"Código de Verificación" <${process.env.EMAIL_SENDER}>`,
@@ -94,8 +103,12 @@ async function sendVerificationEmail(email, phone) {
 
   try {
     await transporter.sendMail(mailOptions);
-    await sendWhatsMessage(phone, `Su codigo de verificacion es: ${verificationCode}`);
-    console.log(`✅ Código enviado a ${email} | Expira a las ${new Date(verificationCodes[email].timestamp + 5 * 60 * 1000).toLocaleTimeString()}`);
+    
+    // Obtener el timestamp de expiración para el log
+    const doc = await verificationCodesRef.doc(email).get();
+    const expirationTime = new Date(doc.data().timestamp + 5 * 60 * 1000).toLocaleTimeString();
+    
+    console.log(`✅ Código enviado a ${email} | Expira a las ${expirationTime}`);
   } catch (error) {
     console.error("❌ Error enviando correo:", error);
     throw error;
@@ -106,16 +119,16 @@ async function sendVerificationEmail(email, phone) {
  * Envía un código de verificación por SMS con Vonage
  */
 async function sendVerificationSMS(phoneNumber) {
-  if (!canSendCode(phoneNumber)) {
+  if (!await canSendCode(phoneNumber)) {
     throw new Error("Por favor, espera al menos 1 minuto antes de solicitar un nuevo código.");
   }
-  const verificationCode = generateVerificationCode(phoneNumber);
+  
+  const verificationCode = await generateVerificationCode(phoneNumber);
   const from = "Vonage";
   const text = `Tu código de verificación es: ${verificationCode}`;
 
   try {
     const response = await vonage.sms.send({ to: phoneNumber, from, text });
-    //await sendVerificationEmail();
     console.log(`✅ SMS enviado a ${phoneNumber}`);
     console.log(response);
   } catch (error) {
@@ -124,16 +137,14 @@ async function sendVerificationSMS(phoneNumber) {
   }
 }
 
-/**
- * Verifica el código ingresado por el usuario (SMS)
- */
-function verifySMSCode(phoneNumber, userInputCode) {
-  return verifyCode(phoneNumber, userInputCode);
+async function sendWhatsAppMessage(phone) {
+  const verificationCode = await generateVerificationCode(phone);
+  await sendWhatsMessage(phone, `Su codigo de verificacion es: ${verificationCode}`);
 }
 
 module.exports = {
   sendVerificationEmail,
   sendVerificationSMS,
-  verifyEmailCode: (email, code) => verifyCode(email, code),
-  verifySMSCode
+  sendWhatsAppMessage,
+  verifyCode,
 };

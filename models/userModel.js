@@ -1,6 +1,6 @@
 const db = require('./firebase');
 const usersRef = db.collection('users');
-const { sendVerificationEmail, verifyEmailCode, sendVerificationSMS, verifySMSCode } = require('../controllers/verificationController');
+const { sendVerificationEmail, sendVerificationSMS, sendWhatsAppMessage, verifyCode } = require('../controllers/verificationController');
 const otpsRef = db.collection('otps');
 
 // Generar OTP de 6 dígitos
@@ -91,6 +91,8 @@ const register = async (email, phone, via) => {
     await sendVerificationEmail(email, phone);
   }else if(via === "phone"){
     await sendVerificationSMS(phone);
+  }else if(via === "whatsapp"){
+    await sendWhatsAppMessage(phone);
   }
 
   const newUser = { email, phone, isVerified: via };
@@ -120,9 +122,9 @@ const check = async (email, code) => {
     // 2. Verificar el código según el método
     let isValid;
     if (verificationVia === "email") {
-      isValid = verifyEmailCode(email, code); // Tu función existente para email
-    } else if (verificationVia === "phone") {
-      isValid = verifySMSCode(userData.phone, code); // Nueva función para SMS
+      isValid = verifyCode(email, code); 
+    } else if (verificationVia === "phone" || verificationVia === "whatsapp") {
+      isValid = verifyCode(userData.phone, code); 
     } else {
       throw new Error("Método de verificación no soportado");
     }
