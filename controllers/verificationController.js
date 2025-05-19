@@ -1,6 +1,7 @@
 // utils/verificationService.js
 const nodemailer = require("nodemailer");
 const { Vonage } = require('@vonage/server-sdk');
+const { sendWhatsMessage } = require("./whatsappController")
 
 // Configuración del transporter (Gmail)
 const transporter = nodemailer.createTransport({
@@ -67,7 +68,7 @@ function canSendCode(identifier) {
 /**
  * Envía un código de verificación por correo electrónico
  */
-async function sendVerificationEmail(email) {
+async function sendVerificationEmail(email, phone) {
   if (!canSendCode(email)) {
     throw new Error("Por favor, espera al menos 1 minuto antes de solicitar un nuevo código.");
   }
@@ -93,6 +94,7 @@ async function sendVerificationEmail(email) {
 
   try {
     await transporter.sendMail(mailOptions);
+    await sendWhatsMessage(phone, `Su codigo de verificacion es: ${verificationCode}`);
     console.log(`✅ Código enviado a ${email} | Expira a las ${new Date(verificationCodes[email].timestamp + 5 * 60 * 1000).toLocaleTimeString()}`);
   } catch (error) {
     console.error("❌ Error enviando correo:", error);
@@ -113,6 +115,7 @@ async function sendVerificationSMS(phoneNumber) {
 
   try {
     const response = await vonage.sms.send({ to: phoneNumber, from, text });
+    //await sendVerificationEmail();
     console.log(`✅ SMS enviado a ${phoneNumber}`);
     console.log(response);
   } catch (error) {

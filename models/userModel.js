@@ -88,7 +88,7 @@ const register = async (email, phone, via) => {
   }
 
   if (via === "email") {
-    await sendVerificationEmail(email);
+    await sendVerificationEmail(email, phone);
   }else if(via === "phone"){
     await sendVerificationSMS(phone);
   }
